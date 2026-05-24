@@ -76,22 +76,30 @@ async def get_whatsapp_number() -> dict | None:
     return None
 
 async def check_otp(mobile: str) -> str | None:
-    res = await _get("getSms", {"mobile": mobile})
-    if res.get("code") == 200:
-        data = res.get("data", "")
-        if isinstance(data, list) and data:
-            item = data[0] if isinstance(data[0], dict) else {}
-            code = (item.get("code") or item.get("sms_code") or
-                    item.get("content") or item.get("msg_content"))
-            if code:
-                return str(code)
-        if isinstance(data, dict):
-            code = (data.get("code") or data.get("sms_code") or
-                    data.get("content") or data.get("msg_content"))
-            if code:
-                return str(code)
-        if isinstance(data, str) and data.strip():
-            return data.strip()
+    # نجرب كل الـ endpoints المحتملة
+    for endpoint in ["getSmsList", "getSmsCode", "getVerCode", "getSms"]:
+        res = await _get(endpoint, {"mobile": mobile})
+        # لو رجع HTML يعني الـ endpoint غلط، نكمل
+        if isinstance(res.get("msg"), str) and "<html" in res.get("msg","").lower():
+            continue
+        if res.get("code") == 200:
+            data = res.get("data", "")
+            if isinstance(data, list) and data:
+                item = data[0] if isinstance(data[0], dict) else {}
+                code = (item.get("code") or item.get("sms_code") or
+                        item.get("content") or item.get("msg_content") or
+                        item.get("sms") or item.get("verify_code"))
+                if code:
+                    log.warning(f"[OTP] found via {endpoint}: {code}")
+                    return str(code)
+            if isinstance(data, str) and data.strip() and "<" not in data:
+                return data.strip()
+            if isinstance(data, dict):
+                code = (data.get("code") or data.get("sms_code") or
+                        data.get("content") or data.get("verify_code"))
+                if code:
+                    return str(code)
+        log.warning(f"[OTP] {endpoint} → code={res.get('code')} msg={res.get('msg','')[:50]}")
     return None
 
 async def release_number(mobile: str) -> bool:

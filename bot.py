@@ -78,7 +78,9 @@ async def fetch_and_send_number(q, uid, is_admin, deduct=True):
 
     if not result:
         await q.edit_message_text(
-            "❌ ما في أرقام متاحة الآن، جرب بعد دقيقة.",
+            "⚠️ <b>الموقع ما عنده أرقام متاحة هلق</b>\n\n"
+            "هاد من الموقع مو من البوت — جرب بعد ثواني 🔁",
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔁 حاول مجدداً", callback_data="get_number"),
                 InlineKeyboardButton("🔙 رجوع",        callback_data="back_main")]]))
@@ -102,7 +104,7 @@ async def fetch_and_send_number(q, uid, is_admin, deduct=True):
         reply_markup=number_kb(number)
     )
 
-    q._application.create_task(wait_for_otp(q, uid, number, mid))
+    asyncio.ensure_future(wait_for_otp(q, uid, number, mid))
     return number
 
 # ══ الأزرار ══════════════════════════════════════════════
