@@ -114,7 +114,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         await q.edit_message_text(
             f"✅ <b>تم تجهيز رقمك!</b>\n\n"
-            f"📱 الرقم: <code>{number}</code>\n"
+            f"📱 الرقم: <code>{format_number(number)}</code>\n"
             f"💸 التكلفة: <b>{config.NUMBER_COST} {config.CURRENCY}</b>\n"
             f"💰 رصيدك: <b>{db.get_balance(uid):.0f} {config.CURRENCY}</b>\n\n"
             f"⏳ <i>جاري انتظار كود التفعيل... (حتى 5 دقائق)</i>",
@@ -201,7 +201,7 @@ async def wait_for_otp(query, uid, number, mid):
             db.update_order(number, "done", otp_code=code)
             await query.message.reply_text(
                 f"🎉 <b>وصل كود التفعيل!</b>\n\n"
-                f"📱 الرقم: <code>{number}</code>\n"
+                f"📱 الرقم: <code>{format_number(number)}</code>\n"
                 f"🔑 الكود: <code>{code}</code>\n\n"
                 f"✅ انسخ الكود واستخدمه الآن!",
                 parse_mode="HTML",
@@ -275,3 +275,28 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def format_number(number: str) -> str:
+    """يحول 9779868649467 إلى (+977) 9868649467"""
+    number = number.lstrip("+")
+    # قائمة رموز الدول الشائعة حسب الطول
+    country_codes = {
+        "1": 1, "7": 1, "20": 2, "27": 2, "30": 2, "31": 2, "32": 2,
+        "33": 2, "34": 2, "36": 2, "39": 2, "40": 2, "41": 2, "43": 2,
+        "44": 2, "45": 2, "46": 2, "47": 2, "48": 2, "49": 2, "51": 2,
+        "52": 2, "53": 2, "54": 2, "55": 2, "56": 2, "57": 2, "58": 2,
+        "60": 2, "61": 2, "62": 2, "63": 2, "64": 2, "65": 2, "66": 2,
+        "81": 2, "82": 2, "84": 2, "86": 2, "90": 2, "91": 2, "92": 2,
+        "93": 3, "94": 2, "95": 2, "98": 2,
+        "212": 3, "213": 3, "216": 3, "218": 3, "220": 3, "221": 3,
+        "234": 3, "249": 3, "251": 3, "254": 3, "255": 3, "256": 3,
+        "966": 3, "971": 3, "972": 3, "973": 3, "974": 3, "975": 3,
+        "976": 3, "977": 3, "992": 3, "994": 3, "995": 3, "996": 3,
+        "998": 3,
+    }
+    for code, length in sorted(country_codes.items(), key=lambda x: -x[1]):
+        if number.startswith(code):
+            local = number[len(code):]
+            return f"(+{code}) {local}"
+    return f"+{number}"
