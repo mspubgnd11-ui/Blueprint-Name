@@ -98,7 +98,10 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     InlineKeyboardButton("🔙 رجوع", callback_data="back_main")]])); return
 
         await q.edit_message_text("⏳ جاري تجهيز رقم عشوائي...")
-        result = await api.get_whatsapp_number()
+        try:
+            result = await asyncio.wait_for(api.get_whatsapp_number(), timeout=20)
+        except asyncio.TimeoutError:
+            result = None
 
         if not result:
             await q.edit_message_text("❌ ما في أرقام متاحة الآن، جرب بعد دقيقة.",
@@ -234,7 +237,7 @@ async def text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"); return
 
     if not db.get_user(target_id):
-        await update.message.reply_text("❌ المستخدم غير موجود."); return
+        db.register_user(target_id, "", "مستخدم")
 
     if action == "add":
         db.update_balance(target_id, +amount,

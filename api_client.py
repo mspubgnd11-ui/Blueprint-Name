@@ -1,5 +1,7 @@
 import aiohttp
+import asyncio
 import logging
+import json
 import config
 
 log = logging.getLogger(__name__)
@@ -13,20 +15,30 @@ async def _get(endpoint: str, params: dict) -> dict:
     params["name"]   = NAME
     params["ApiKey"] = KEY
     url = f"{BASE}/{endpoint}"
-    async with aiohttp.ClientSession() as s:
-        async with s.get(url, params=params) as r:
-            text = await r.text()
-            log.warning(f"[API] {endpoint} → {text}")  # عشان نشوف الرد
-            try:
-                import json
-                return json.loads(text)
-            except Exception:
-                return {"code": -1, "msg": text}
+    try:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as s:
+            async with s.get(url, params=params) as r:
+                text = await r.text()
+                log.warning(f"[API] {endpoint} → {text[:200]}")
+                try:
+                    return json.loads(text)
+                except Exception:
+                    return {"code": -1, "msg": text}
+    except asyncio.TimeoutError:
+        log.warning(f"[API] {endpoint} → TIMEOUT")
+        return {"code": -1, "msg": "timeout"}
+    except Exception as e:
+        log.warning(f"[API] {endpoint} → ERROR: {e}")
+        return {"code": -1, "msg": str(e)}
 
 async def get_balance_api() -> float:
     res = await _get("getUserInfo", {})
     if res.get("code") == 200:
-        return float(res["data"].get("score", 0))
+        try:
+            return float(res["data"].get("score", 0))
+        except Exception:
+            return 0.0
     return 0.0
 
 async def get_whatsapp_number() -> dict | None:
@@ -36,47 +48,50 @@ async def get_whatsapp_number() -> dict | None:
         "serial":  "2",
         "noblack": "0",
     })
-    log.warning(f"[getMobile full response] {res}")
 
     if res.get("code") == 200:
-        data = res.get("data", {})
-        # جرب كل الاحتمالات
-        # الـ API بيرجع الرقم مباشرة كـ string
-        if isinstance(data, str) and data.startswith("+"):
-            return {"id": data.replace("+", ""), "number": data.replace("+", "")}
+        data = res.get("data", "")
+
+        # الـ API بيرجع الرقم مباشرة كـ string: "+9779868649467"
+        if isinstance(data, str) and len(data) > 5:
+            number = data.replace("+", "").strip()
+            return {"id": number, "number": number}
+
+        # أو كـ list
         if isinstance(data, list) and data:
             item = data[0]
-        elif isinstance(data, dict):
-            item = data
-        else:
-            log.warning(f"[getMobile] data format unknown: {data}")
-            return None
+            if isinstance(item, str):
+                number = item.replace("+", "").strip()
+                return {"id": number, "number": number}
+            mobile = (item.get("mobile") or item.get("phone") or item.get("number"))
+            if mobile:
+                return {"id": str(mobile), "number": str(mobile).replace("+", "")}
 
-        mobile = (item.get("mobile") or item.get("phone") or
-                  item.get("number") or item.get("tel"))
-        mid    = (item.get("id") or item.get("mid") or
-                  item.get("uuid") or mobile)
+        # أو كـ dict
+        if isinstance(data, dict):
+            mobile = (data.get("mobile") or data.get("phone") or data.get("number"))
+            if mobile:
+                return {"id": str(mobile), "number": str(mobile).replace("+", "")}
 
-        log.warning(f"[getMobile] mobile={mobile}, id={mid}")
-        if mobile:
-            return {"id": str(mid), "number": str(mobile)}
-
-    log.warning(f"[getMobile] failed, code={res.get('code')}, msg={res.get('msg')}")
     return None
 
 async def check_otp(mobile: str) -> str | None:
     res = await _get("getSms", {"mobile": mobile})
     if res.get("code") == 200:
-        data = res.get("data", {})
-        # الـ API بيرجع الرقم مباشرة كـ string
-        if isinstance(data, str) and data.startswith("+"):
-            return {"id": data.replace("+", ""), "number": data.replace("+", "")}
+        data = res.get("data", "")
         if isinstance(data, list) and data:
-            data = data[0]
-        code = (data.get("code") or data.get("sms_code") or
-                data.get("content") or data.get("msg_content"))
-        if code:
-            return str(code)
+            item = data[0] if isinstance(data[0], dict) else {}
+            code = (item.get("code") or item.get("sms_code") or
+                    item.get("content") or item.get("msg_content"))
+            if code:
+                return str(code)
+        if isinstance(data, dict):
+            code = (data.get("code") or data.get("sms_code") or
+                    data.get("content") or data.get("msg_content"))
+            if code:
+                return str(code)
+        if isinstance(data, str) and data.strip():
+            return data.strip()
     return None
 
 async def release_number(mobile: str) -> bool:
