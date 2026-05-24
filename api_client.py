@@ -41,6 +41,9 @@ async def get_whatsapp_number() -> dict | None:
     if res.get("code") == 200:
         data = res.get("data", {})
         # جرب كل الاحتمالات
+        # الـ API بيرجع الرقم مباشرة كـ string
+        if isinstance(data, str) and data.startswith("+"):
+            return {"id": data.replace("+", ""), "number": data.replace("+", "")}
         if isinstance(data, list) and data:
             item = data[0]
         elif isinstance(data, dict):
@@ -65,6 +68,9 @@ async def check_otp(mobile: str) -> str | None:
     res = await _get("getSms", {"mobile": mobile})
     if res.get("code") == 200:
         data = res.get("data", {})
+        # الـ API بيرجع الرقم مباشرة كـ string
+        if isinstance(data, str) and data.startswith("+"):
+            return {"id": data.replace("+", ""), "number": data.replace("+", "")}
         if isinstance(data, list) and data:
             data = data[0]
         code = (data.get("code") or data.get("sms_code") or
